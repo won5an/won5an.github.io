@@ -53,7 +53,7 @@
         .btn-generate { background: #fff !important; color: #000 !important; font-weight: 600; border: none !important; margin-top: 20px; font-size: 13px;}
         .btn-generate:hover { background: #ddd !important; }
 
-        /* --- ЗОНА ПРЕВЬЮ --- */
+        /* --- ЗОНА ПРЕВЬЮ (ХОЛСТ PDF) --- */
         .preview-panel {
             flex-grow: 1; display: flex; justify-content: center; align-items: flex-start;
             padding: 40px; overflow-y: auto; background: #000;
@@ -61,7 +61,7 @@
 
         #pdf-wrapper { display: flex; flex-direction: column; gap: 20px; }
 
-        /* ЖЕСТКИЕ СТИЛИ СТРАНИЦЫ А4 (ДЛЯ ИДЕАЛЬНОГО ФОНА) */
+        /* ЖЕСТКИЕ СТИЛИ СТРАНИЦЫ А4 */
         .a4-page {
             width: 800px;
             height: 1131px; /* Точные пропорции А4 */
@@ -69,16 +69,19 @@
             color: #ffffff;
             padding: 50px;
             box-sizing: border-box;
-            position: relative;
+            position: relative; /* Для абсолютного позиционирования подвала */
             overflow: hidden;
-            page-break-after: always;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
-        .a4-page:last-child { page-break-after: auto; }
 
-        /* Внутренние элементы КП */
+        /* Элементы внутри PDF */
         .kp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 25px;}
         .kp-logo h1 { margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; }
-        .kp-logo p { margin: 5px 0 0 0; font-size: 12px; color: #aaa; letter-spacing: 2px; text-transform: uppercase;}
+        .kp-logo p { margin: 5px 0 0 0; font-size: 11px; color: #888; letter-spacing: 2px; text-transform: uppercase;}
+        
+        /* Спец стиль для страницы 2 и далее */
+        .kp-logo .page-num { color: #fff; font-weight: 500; font-size: 12px; background: #333; padding: 3px 8px; border-radius: 4px; display: inline-block; margin-top: 8px;}
+
         .kp-contacts { text-align: right; font-size: 12px; color: #aaa; line-height: 1.8; }
         .kp-contacts strong { color: #fff; font-weight: 500; font-size: 14px; }
         .kp-contacts i { width: 20px; text-align: center; color: #666;}
@@ -144,7 +147,7 @@
             </div>
         </div>
 
-        <h3 style="font-size: 14px; margin-top: 30px; border-bottom: 1px solid #333; padding-bottom: 10px; color:#fff;">СПИСОК ПОЗИЦИЙ</h3>
+        <h3 style="font-size: 14px; margin-top: 30px; border-bottom: 1px solid #333; padding-bottom: 10px; color:#fff;">СПИСОК ПОЗИЦИЙ (Макс 5 на лист)</h3>
         
         <div id="items-container"></div>
 
@@ -153,8 +156,9 @@
     </div>
 
     <div class="preview-panel">
-        <!-- Сюда JS динамически будет вставлять страницы (a4-page) -->
-        <div id="pdf-wrapper"></div>
+        <div id="pdf-wrapper">
+            <!-- Страницы генерируются здесь через JS -->
+        </div>
     </div>
 
     <!-- СКРИПТЫ -->
@@ -233,140 +237,142 @@
             });
         }
 
-        // --- УМНАЯ ПАГИНАЦИЯ (РАЗБИВКА НА СТРАНИЦЫ) ---
+        // Разбивка массива на куски (по 5 элементов)
+        function chunkArray(array, size) {
+            const result = [];
+            for (let i = 0; i < array.length; i += size) {
+                result.push(array.slice(i, i + size));
+            }
+            return result;
+        }
+
+        // --- ЖЕСТКАЯ ПАГИНАЦИЯ (МАКСИМУМ 5 НА ЛИСТ) ---
         function updatePreview() {
             const wrapper = document.getElementById('pdf-wrapper');
-            wrapper.innerHTML = ''; // Очищаем всё
+            wrapper.innerHTML = ''; 
 
             const cCompany = document.getElementById('c-company').value;
             const cSub = document.getElementById('c-sub').value;
+            const cMainTitle = document.getElementById('c-main-title').value;
+            const cSubTitle = document.getElementById('c-sub-title').value;
             const cName = document.getElementById('c-name').value;
             const cPhone = document.getElementById('c-phone').value;
             const cEmail = document.getElementById('c-email').value;
+            const cAbout = document.getElementById('c-about').value.replace(/\n/g, '<br>');
 
-            // Шаблоны HTML-блоков
-            const headerHtml = `
-                <div class="kp-header">
-                    <div class="kp-logo"><h1>${cCompany}</h1><p>${cSub}</p></div>
-                    <div class="kp-contacts">
-                        <strong>${cName}</strong><br><div style="margin-top:5px;"></div>
-                        <i class="fas fa-phone"></i> <span>${cPhone}</span><br>
-                        <i class="fas fa-envelope"></i> <span>${cEmail}</span>
-                    </div>
-                </div>`;
-            
-            const titleHtml = `
-                <div class="kp-title-block">
-                    <h2>${document.getElementById('c-main-title').value}</h2>
-                    <p>${document.getElementById('c-sub-title').value}</p>
-                </div>`;
+            // Разбиваем позиции на группы по 5 штук
+            let chunks = chunkArray(items, 5);
+            // Если позиций нет вообще, все равно показываем 1 пустую страницу
+            if (chunks.length === 0) chunks = [[]]; 
 
-            const tableStartHtml = `
-                <table class="kp-table">
-                    <thead><tr><th colspan="2">Наименование</th><th class="right">Кол-во</th><th class="right">Цена</th><th class="right">Итого</th></tr></thead>
-                    <tbody>`;
-            const tableEndHtml = `</tbody></table>`;
+            const totalPages = chunks.length;
+            let grandTotal = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
 
-            // Лимиты высоты (в пикселях)
-            const MAX_PAGE_HEIGHT = 1031; // 1131 (А4) - 100 (padding)
-            const FOOTER_SPACE_NEEDED = 250; // Место для Итога и Подвала на последней странице
+            // Генерируем каждую страницу отдельно
+            chunks.forEach((chunk, pageIndex) => {
+                const pageNum = pageIndex + 1;
+                const isLastPage = (pageNum === totalPages);
+                
+                const page = document.createElement('div');
+                page.className = 'a4-page';
 
-            let currentPage = createPage(wrapper);
-            let currentContentHtml = headerHtml + titleHtml + tableStartHtml;
-            let currentHeight = 0;
-            let grandTotal = 0;
+                let html = '';
 
-            // Временный скрытый контейнер для точного замера высоты строк
-            const measureDiv = document.createElement('div');
-            measureDiv.className = 'a4-page';
-            measureDiv.style.position = 'absolute'; measureDiv.style.visibility = 'hidden';
-            document.body.appendChild(measureDiv);
-
-            // Замеряем базовую высоту шапки и заголовков
-            measureDiv.innerHTML = headerHtml + titleHtml + tableStartHtml + tableEndHtml;
-            currentHeight = measureDiv.offsetHeight - 100; // минус паддинги
-
-            items.forEach((item, index) => {
-                const sum = item.qty * item.price;
-                grandTotal += sum;
-
-                let vis = item.visualType === 'image' 
-                    ? `<img src="${item.imageBase64 || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}">`
-                    : `<i class="${item.iconClass}"></i>`;
-
-                const rowHtml = `
-                    <tr class="kp-row">
-                        <td class="visual-cell"><div class="visual-box">${vis}</div></td>
-                        <td><strong style="font-weight: 500; font-size:13px; color:#fff;">${item.desc}</strong></td>
-                        <td class="right">${item.qty}</td>
-                        <td class="right">${formatNumber(item.price)}</td>
-                        <td class="right" style="color:#fff; font-weight:500;">${formatNumber(sum)}</td>
-                    </tr>`;
-
-                // Замеряем высоту этой строки
-                measureDiv.innerHTML = tableStartHtml + rowHtml + tableEndHtml;
-                const rowHeight = measureDiv.querySelector('.kp-row').offsetHeight;
-
-                // Если строка не влезает на текущую страницу
-                if (currentHeight + rowHeight > MAX_PAGE_HEIGHT) {
-                    // Закрываем текущую страницу
-                    currentPage.innerHTML = currentContentHtml + tableEndHtml;
-                    
-                    // Создаем новую
-                    currentPage = createPage(wrapper);
-                    currentContentHtml = headerHtml + tableStartHtml + rowHtml; // Шапка дублируется
-                    
-                    // Замеряем начальную высоту новой страницы
-                    measureDiv.innerHTML = headerHtml + tableStartHtml + rowHtml + tableEndHtml;
-                    currentHeight = measureDiv.offsetHeight - 100;
+                // --- ШАПКА СТРАНИЦЫ ---
+                if (pageNum === 1) {
+                    // Первая страница: Полная шапка с подзаголовком и названием КП
+                    html += `
+                        <div class="kp-header">
+                            <div class="kp-logo"><h1>${cCompany}</h1><p>${cSub}</p></div>
+                            <div class="kp-contacts">
+                                <strong>${cName}</strong><br><div style="margin-top:5px;"></div>
+                                <i class="fas fa-phone"></i> <span>${cPhone}</span><br>
+                                <i class="fas fa-envelope"></i> <span>${cEmail}</span>
+                            </div>
+                        </div>
+                        <div class="kp-title-block">
+                            <h2>${cMainTitle}</h2>
+                            <p>${cSubTitle}</p>
+                        </div>
+                    `;
                 } else {
-                    currentContentHtml += rowHtml;
-                    currentHeight += rowHeight;
+                    // Вторая страница и далее: Укороченная шапка с номером страницы
+                    html += `
+                        <div class="kp-header">
+                            <div class="kp-logo">
+                                <h1>${cCompany}</h1>
+                                <span class="page-num">Страница ${pageNum} из ${totalPages}</span>
+                            </div>
+                            <div class="kp-contacts">
+                                <strong>${cName}</strong><br><div style="margin-top:5px;"></div>
+                                <i class="fas fa-phone"></i> <span>${cPhone}</span><br>
+                                <i class="fas fa-envelope"></i> <span>${cEmail}</span>
+                            </div>
+                        </div>
+                    `;
                 }
+
+                // --- ТАБЛИЦА С ПОЗИЦИЯМИ (МАКСИМУМ 5 ШТУК) ---
+                html += `
+                    <table class="kp-table">
+                        <thead>
+                            <tr>
+                                <th colspan="2">Наименование работ / материалов</th>
+                                <th class="right">Кол-во</th>
+                                <th class="right">Цена</th>
+                                <th class="right">Итого</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                chunk.forEach(item => {
+                    const sum = item.qty * item.price;
+                    let vis = item.visualType === 'image' 
+                        ? `<img src="${item.imageBase64 || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}">`
+                        : `<i class="${item.iconClass}"></i>`;
+
+                    html += `
+                        <tr class="kp-row">
+                            <td class="visual-cell"><div class="visual-box">${vis}</div></td>
+                            <td><strong style="font-weight: 500; font-size:13px; color:#fff;">${item.desc}</strong></td>
+                            <td class="right">${item.qty}</td>
+                            <td class="right">${formatNumber(item.price)}</td>
+                            <td class="right" style="color:#fff; font-weight:500;">${formatNumber(sum)}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `</tbody></table>`;
+
+                // --- ИТОГ И ПОДВАЛ (ТОЛЬКО НА ПОСЛЕДНЕЙ СТРАНИЦЕ) ---
+                if (isLastPage) {
+                    html += `
+                        <div class="kp-total-wrapper">
+                            <div class="kp-total-box">
+                                <span class="lbl">Общая стоимость</span>
+                                <span class="sum">${formatNumber(grandTotal)} ₽</span>
+                            </div>
+                        </div>
+                        
+                        <div class="kp-rich-footer">
+                            <div class="footer-col-left">
+                                <h4>О НАШЕЙ КОМПАНИИ</h4>
+                                <p>${cAbout}</p>
+                            </div>
+                            <div class="footer-col-right">
+                                <h4>СВЯЗАТЬСЯ С НАМИ</h4>
+                                <p><i class="fas fa-user"></i> <strong>${cName}</strong></p>
+                                <p><i class="fas fa-phone"></i> <span>${cPhone}</span></p>
+                                <p><i class="fas fa-envelope"></i> <span>${cEmail}</span></p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                page.innerHTML = html;
+                wrapper.appendChild(page);
             });
-
-            // Закрываем таблицу на последней странице
-            currentContentHtml += tableEndHtml;
-
-            // Проверяем, влезает ли ИТОГ + ПОДВАЛ на эту последнюю страницу
-            if (currentHeight + FOOTER_SPACE_NEEDED > MAX_PAGE_HEIGHT) {
-                // Если нет места, выводим что есть и создаем пустую страницу чисто для финала
-                currentPage.innerHTML = currentContentHtml;
-                currentPage = createPage(wrapper);
-                currentContentHtml = headerHtml; // Снова дублируем шапку
-            }
-
-            // Добавляем Итог и Подвал
-            const footerHtml = `
-                <div class="kp-total-wrapper">
-                    <div class="kp-total-box">
-                        <span class="lbl">Общая стоимость</span>
-                        <span class="sum">${formatNumber(grandTotal)} ₽</span>
-                    </div>
-                </div>
-                <div class="kp-rich-footer">
-                    <div class="footer-col-left">
-                        <h4>О НАШЕЙ КОМПАНИИ</h4>
-                        <p>${document.getElementById('c-about').value.replace(/\n/g, '<br>')}</p>
-                    </div>
-                    <div class="footer-col-right">
-                        <h4>СВЯЗАТЬСЯ С НАМИ</h4>
-                        <p><i class="fas fa-user"></i> <strong>${cName}</strong></p>
-                        <p><i class="fas fa-phone"></i> <span>${cPhone}</span></p>
-                        <p><i class="fas fa-envelope"></i> <span>${cEmail}</span></p>
-                    </div>
-                </div>`;
-
-            currentPage.innerHTML = currentContentHtml + footerHtml;
-            document.body.removeChild(measureDiv); // Убираем измеритель
-        }
-
-        // Вспомогательная функция создания DOM-страницы
-        function createPage(parent) {
-            const page = document.createElement('div');
-            page.className = 'a4-page';
-            parent.appendChild(page);
-            return page;
         }
 
         // --- ГЕНЕРАЦИЯ PDF ---
@@ -374,14 +380,16 @@
             const element = document.getElementById('pdf-wrapper');
             const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-я0-9]/gi, '_');
             
+            // Настройки для html2pdf
             const opt = {
-                margin:       0,
+                margin:       [0, 0, 0, 0], // Убираем поля PDF, чтобы черный фон занял всё
                 filename:     `КП_${subTitle}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#151515' },
                 jsPDF:        { unit: 'px', format: [800, 1131], orientation: 'portrait' }
             };
 
+            // Скачиваем PDF
             html2pdf().set(opt).from(element).save();
         }
 
@@ -390,7 +398,8 @@
             addItem('icon', 'fas fa-trowel', 'Штукатурка гипсовая Knauf Rotband (30кг)', 520);
             addItem('icon', 'fas fa-paint-roller', 'Комплекс малярных работ (кв.м)', 1200);
             addItem('icon', 'fas fa-tape', 'Малярная лента, укрывочная пленка, расходники', 3500);
-            renderForm(); updatePreview();
+            renderForm(); 
+            updatePreview();
         };
 
     </script>
