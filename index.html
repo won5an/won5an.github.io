@@ -448,17 +448,27 @@
             adjustMobileScale();
         }
 
-        function generatePDF() {
-            const container = document.getElementById('pdf-scale-container');
-            const element = document.getElementById('pdf-wrapper');
+function generatePDF() {
+            const originalWrapper = document.getElementById('pdf-wrapper');
             const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-я0-9]/gi, '_');
             
-            // 1. Отключаем масштаб перед скачиванием (чтобы качество не упало)
-            container.style.transform = 'none';
-            container.style.height = 'auto';
+            // 1. Создаем временный невидимый контейнер строго в координатах 0,0
+            const tempDiv = document.createElement('div');
+            tempDiv.style.position = 'fixed';
+            tempDiv.style.top = '0';
+            tempDiv.style.left = '0';
+            tempDiv.style.width = '800px';
+            tempDiv.style.zIndex = '-9999'; // Прячем за экраном, чтобы не мерцало
+            tempDiv.style.background = '#151515';
 
+            // 2. Делаем точную копию нашего КП и кладем в этот контейнер
+            const clone = originalWrapper.cloneNode(true);
+            tempDiv.appendChild(clone);
+            document.body.appendChild(tempDiv);
+
+            // 3. Настройки генерации
             const opt = {
-                margin:       [0, 0, 0, 0],
+                margin:       0,
                 filename:     `КП_${subTitle}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { 
@@ -466,24 +476,17 @@
                     useCORS: true, 
                     backgroundColor: '#151515',
                     scrollY: 0,
-                    windowWidth: 800 // Принудительно задаем ширину холста
+                    scrollX: 0,
+                    windowWidth: 800 // Жестко фиксируем ширину
                 },
                 jsPDF:        { unit: 'px', format: [800, 1131], orientation: 'portrait' }
             };
 
-            // 2. Генерируем PDF, а затем (then) возвращаем масштаб обратно
-            html2pdf().set(opt).from(element).save().then(() => {
-                adjustMobileScale();
+            // 4. Генерируем PDF из чистого клона, а затем удаляем его
+            html2pdf().set(opt).from(clone).save().then(() => {
+                document.body.removeChild(tempDiv);
             });
         }
-
-        window.onload = () => {
-            addItem('icon', 'fas fa-trowel', 'Штукатурка гипсовая Knauf Rotband (30кг)', 520);
-            addItem('icon', 'fas fa-paint-roller', 'Комплекс малярных работ (кв.м)', 1200);
-            addItem('icon', 'fas fa-tape', 'Малярная лента, укрывочная пленка, расходники', 3500);
-            renderForm(); 
-            updatePreview();
-        };
 
     </script>
 </body>
