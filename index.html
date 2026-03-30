@@ -583,14 +583,35 @@
         //  собирается в многостраничный PDF через jsPDF
         // ─────────────────────────────────────────────
         async function generatePDF() {
-            const btn = document.getElementById('btn-generate');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Генерация...';
+            // Блокируем все кнопки генерации (десктоп + мобайл)
+            const allBtns = document.querySelectorAll('.btn-generate');
+            allBtns.forEach(b => { b.disabled = true; b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Генерация...'; });
 
             try {
                 const { jsPDF } = window.jspdf;
-                const pages = Array.from(document.querySelectorAll('#pdf-wrapper .a4-page'));
+                const pages    = Array.from(document.querySelectorAll('#pdf-wrapper .a4-page'));
                 const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-яёА-ЯЁ0-9]/gi, '_');
+
+                // ── Рендерим из клонов в скрытом контейнере без transform ──
+                // Это гарантирует корректный захват на мобиле, где #preview-scaler масштабирован
+                const offscreen = document.createElement('div');
+                offscreen.style.cssText = [
+                    'position:fixed', 'left:-9999px', 'top:0',
+                    'width:800px', 'background:#151515',
+                    'display:flex', 'flex-direction:column', 'gap:0',
+                    'z-index:-1', 'pointer-events:none'
+                ].join(';');
+                document.body.appendChild(offscreen);
+
+                const clones = pages.map(p => {
+                    const clone = p.cloneNode(true);
+                    clone.style.transform = 'none'; // сброс любых трансформаций
+                    offscreen.appendChild(clone);
+                    return clone;
+                });
+
+                // Ждём один кадр чтобы браузер отрисовал клоны
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
                 const pdf = new jsPDF({
                     unit: 'px',
@@ -599,32 +620,30 @@
                     hotfixes: ['px_scaling']
                 });
 
-                for (let i = 0; i < pages.length; i++) {
+                for (let i = 0; i < clones.length; i++) {
                     if (i > 0) pdf.addPage([800, 1131], 'portrait');
 
-                    const canvas = await html2canvas(pages[i], {
-                        scale: 2,                    // Ретина-качество
+                    const canvas = await html2canvas(clones[i], {
+                        scale: 2,
                         useCORS: true,
                         backgroundColor: '#151515',
                         width: 800,
                         height: 1131,
                         scrollX: 0,
-                        scrollY: -window.scrollY,
+                        scrollY: 0,
                         logging: false
                     });
 
-                    const imgData = canvas.toDataURL('image/jpeg', 0.97);
-                    // Добавляем изображение точно на всю страницу PDF
-                    pdf.addImage(imgData, 'JPEG', 0, 0, 800, 1131);
+                    pdf.addImage(canvas.toDataURL('image/jpeg', 0.97), 'JPEG', 0, 0, 800, 1131);
                 }
 
+                document.body.removeChild(offscreen);
                 pdf.save(`КП_${subTitle}.pdf`);
             } catch (err) {
                 console.error('PDF generation error:', err);
                 alert('Ошибка генерации PDF:\n' + err.message);
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-file-pdf"></i> Сохранить PDF (А4)';
+                allBtns.forEach(b => { b.disabled = false; b.innerHTML = '<i class="fas fa-file-pdf"></i> Сохранить PDF'; });
             }
         }
 
@@ -651,6 +670,10 @@
                 genBar.classList.add('visible');
                 applyPreviewScale();
             }
+
+            // Ждём два кадра пока браузер пересчитает layout после показа/скрытия панелей,
+            // затем скроллим в начало чтобы minHeight не утащил страницу вниз
+            requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' })));
         }
 
         function applyPreviewScale() {
