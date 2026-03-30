@@ -59,7 +59,11 @@
             padding: 40px; overflow-y: auto; background: #000;
         }
 
-        #pdf-wrapper { display: flex; flex-direction: column; gap: 20px; }
+        /* Убрали gap, чтобы html2canvas не захватывал пустоту и не плодил пустые страницы */
+        #pdf-wrapper { 
+            display: flex; flex-direction: column; background: #151515;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
 
         /* ЖЕСТКИЕ СТИЛИ СТРАНИЦЫ А4 */
         .a4-page {
@@ -71,15 +75,15 @@
             box-sizing: border-box;
             position: relative; /* Для абсолютного позиционирования подвала */
             overflow: hidden;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-bottom: 1px solid #222; /* Визуальный разделитель в браузере */
         }
+        .a4-page:last-child { border-bottom: none; }
 
         /* Элементы внутри PDF */
         .kp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 25px;}
         .kp-logo h1 { margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; }
         .kp-logo p { margin: 5px 0 0 0; font-size: 11px; color: #888; letter-spacing: 2px; text-transform: uppercase;}
         
-        /* Спец стиль для страницы 2 и далее */
         .kp-logo .page-num { color: #fff; font-weight: 500; font-size: 12px; background: #333; padding: 3px 8px; border-radius: 4px; display: inline-block; margin-top: 8px;}
 
         .kp-contacts { text-align: right; font-size: 12px; color: #aaa; line-height: 1.8; }
@@ -105,7 +109,15 @@
         .kp-total-box span.lbl { display: block; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
         .kp-total-box span.sum { font-size: 24px; font-weight: 600; color: #fff; }
 
-        /* Подвал строго прибит к низу страницы */
+        /* Надпись "Продолжение на следующей странице" */
+        .continue-text {
+            position: absolute; bottom: 60px; left: 0; width: 100%;
+            text-align: center; color: #666; font-size: 11px;
+            text-transform: uppercase; letter-spacing: 2px;
+        }
+        .continue-text i { display: block; margin-top: 10px; font-size: 16px; color: #555;}
+
+        /* Подвал строго прибит к низу последней страницы */
         .kp-rich-footer {
             position: absolute; bottom: 50px; left: 50px; right: 50px;
             padding-top: 30px; border-top: 1px solid #333;
@@ -237,7 +249,6 @@
             });
         }
 
-        // Разбивка массива на куски (по 5 элементов)
         function chunkArray(array, size) {
             const result = [];
             for (let i = 0; i < array.length; i += size) {
@@ -246,7 +257,6 @@
             return result;
         }
 
-        // --- ЖЕСТКАЯ ПАГИНАЦИЯ (МАКСИМУМ 5 НА ЛИСТ) ---
         function updatePreview() {
             const wrapper = document.getElementById('pdf-wrapper');
             wrapper.innerHTML = ''; 
@@ -260,15 +270,12 @@
             const cEmail = document.getElementById('c-email').value;
             const cAbout = document.getElementById('c-about').value.replace(/\n/g, '<br>');
 
-            // Разбиваем позиции на группы по 5 штук
             let chunks = chunkArray(items, 5);
-            // Если позиций нет вообще, все равно показываем 1 пустую страницу
             if (chunks.length === 0) chunks = [[]]; 
 
             const totalPages = chunks.length;
             let grandTotal = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
 
-            // Генерируем каждую страницу отдельно
             chunks.forEach((chunk, pageIndex) => {
                 const pageNum = pageIndex + 1;
                 const isLastPage = (pageNum === totalPages);
@@ -278,9 +285,7 @@
 
                 let html = '';
 
-                // --- ШАПКА СТРАНИЦЫ ---
                 if (pageNum === 1) {
-                    // Первая страница: Полная шапка с подзаголовком и названием КП
                     html += `
                         <div class="kp-header">
                             <div class="kp-logo"><h1>${cCompany}</h1><p>${cSub}</p></div>
@@ -296,7 +301,6 @@
                         </div>
                     `;
                 } else {
-                    // Вторая страница и далее: Укороченная шапка с номером страницы
                     html += `
                         <div class="kp-header">
                             <div class="kp-logo">
@@ -312,7 +316,6 @@
                     `;
                 }
 
-                // --- ТАБЛИЦА С ПОЗИЦИЯМИ (МАКСИМУМ 5 ШТУК) ---
                 html += `
                     <table class="kp-table">
                         <thead>
@@ -345,8 +348,17 @@
 
                 html += `</tbody></table>`;
 
-                // --- ИТОГ И ПОДВАЛ (ТОЛЬКО НА ПОСЛЕДНЕЙ СТРАНИЦЕ) ---
-                if (isLastPage) {
+                // Если страница НЕ последняя - пишем "Продолжение на следующей странице"
+                if (!isLastPage) {
+                    html += `
+                        <div class="continue-text">
+                            Продолжение на следующей странице
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                    `;
+                } 
+                // Если последняя - добавляем Итог и Футер
+                else {
                     html += `
                         <div class="kp-total-wrapper">
                             <div class="kp-total-box">
@@ -375,25 +387,26 @@
             });
         }
 
-        // --- ГЕНЕРАЦИЯ PDF ---
         function generatePDF() {
             const element = document.getElementById('pdf-wrapper');
             const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-я0-9]/gi, '_');
             
-            // Настройки для html2pdf
             const opt = {
-                margin:       [0, 0, 0, 0], // Убираем поля PDF, чтобы черный фон занял всё
+                margin:       0,
                 filename:     `КП_${subTitle}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#151515' },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    backgroundColor: '#151515',
+                    scrollY: 0 // ВАЖНО: Фиксит обрезку PDF при скролле вниз
+                },
                 jsPDF:        { unit: 'px', format: [800, 1131], orientation: 'portrait' }
             };
 
-            // Скачиваем PDF
             html2pdf().set(opt).from(element).save();
         }
 
-        // --- СТАРТ ---
         window.onload = () => {
             addItem('icon', 'fas fa-trowel', 'Штукатурка гипсовая Knauf Rotband (30кг)', 520);
             addItem('icon', 'fas fa-paint-roller', 'Комплекс малярных работ (кв.м)', 1200);
