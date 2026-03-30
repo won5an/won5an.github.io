@@ -2,21 +2,23 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Генератор КП - ГЕОМЕТР</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Заменили html2pdf на раздельные библиотеки для точного контроля -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
-        /* --- БАЗОВЫЕ СТИЛИ --- */
+        /* --- ТЕМНАЯ ТЕМА ИНТЕРФЕЙСА --- */
         body {
             font-family: 'Montserrat', sans-serif; margin: 0; padding: 0;
             background-color: #050505; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden;
         }
 
-        /* --- ПАНЕЛЬ УПРАВЛЕНИЯ --- */
         .controls-panel {
             width: 450px; background: #111; padding: 30px 25px; box-sizing: border-box;
             border-right: 1px solid #222; overflow-y: auto; z-index: 10;
@@ -42,50 +44,43 @@
         .item-input-block { background: #1a1a1a; border: 1px solid #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 15px; position: relative; }
         .remove-btn {
             position: absolute; top: 12px; right: 12px; background: none; color: #ff4444; 
-            border: 1px solid #ff4444; border-radius: 4px; cursor: pointer; padding: 8px; transition: 0.2s; font-size: 14px;
+            border: 1px solid #ff4444; border-radius: 4px; cursor: pointer; padding: 4px 8px; transition: 0.2s; font-size: 12px;
         }
         .remove-btn:hover { background: #ff4444; color: #fff; }
 
         button.action-btn {
             width: 100%; padding: 14px; border: 1px solid #444; background: #222; color: #fff; 
-            border-radius: 6px; cursor: pointer; font-weight: 500; margin-bottom: 10px; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; transition: 0.2s;
+            border-radius: 6px; cursor: pointer; font-weight: 500; margin-bottom: 10px; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; transition: 0.2s;
         }
         button.action-btn:hover { background: #333; border-color: #fff; }
-        
+        button.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-generate { background: #fff !important; color: #000 !important; font-weight: 600; border: none !important; margin-top: 20px; font-size: 13px;}
-        .btn-generate:hover { background: #ddd !important; }
+        .btn-generate:hover:not(:disabled) { background: #ddd !important; }
 
-        /* --- ЗОНА ПРЕВЬЮ (ХОЛСТ PDF) --- */
+        /* --- ЗОНА ПРЕВЬЮ --- */
         .preview-panel {
             flex-grow: 1; display: flex; justify-content: center; align-items: flex-start;
             padding: 40px; overflow-y: auto; background: #000;
         }
 
-        #pdf-scale-container {
-            /* Контейнер для корректного масштабирования на мобилках */
-            width: 800px;
-            transform-origin: top center;
-        }
-
-        #pdf-wrapper { 
-            display: flex; flex-direction: column; background: #151515;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
+        #pdf-wrapper { display: flex; flex-direction: column; gap: 20px; }
 
         /* ЖЕСТКИЕ СТИЛИ СТРАНИЦЫ А4 */
         .a4-page {
-            width: 800px; height: 1131px; background: #151515; color: #ffffff;
-            padding: 50px; box-sizing: border-box; position: relative; overflow: hidden;
-            border-bottom: 1px solid #222;
+            width: 800px;
+            height: 1131px;
+            background: #151515;
+            color: #ffffff;
+            padding: 50px;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
         }
-        .a4-page:last-child { border-bottom: none; }
 
-        /* Внутренности PDF */
+        /* Внутренние элементы КП */
         .kp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 25px;}
         .kp-logo h1 { margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; }
-        .kp-logo p { margin: 5px 0 0 0; font-size: 11px; color: #888; letter-spacing: 2px; text-transform: uppercase;}
-        .kp-logo .page-num { color: #fff; font-weight: 500; font-size: 12px; background: #333; padding: 3px 8px; border-radius: 4px; display: inline-block; margin-top: 8px;}
-
+        .kp-logo p { margin: 5px 0 0 0; font-size: 12px; color: #aaa; letter-spacing: 2px; text-transform: uppercase;}
         .kp-contacts { text-align: right; font-size: 12px; color: #aaa; line-height: 1.8; }
         .kp-contacts strong { color: #fff; font-weight: 500; font-size: 14px; }
         .kp-contacts i { width: 20px; text-align: center; color: #666;}
@@ -104,15 +99,20 @@
         .visual-box img { width: 100%; height: 100%; object-fit: cover; }
         .visual-box i { font-size: 24px; color: #fff; }
 
-        .kp-total-wrapper { display: flex; justify-content: flex-end; margin-top: 20px; margin-bottom: 30px;}
+        /* Единый блок итога + подвала, прибитый к низу страницы */
+        .kp-bottom-block {
+            position: absolute; bottom: 50px; left: 50px; right: 50px;
+        }
+
+        .kp-total-wrapper { display: flex; justify-content: flex-end; margin-bottom: 20px; }
         .kp-total-box { border: 1px solid #555; padding: 15px 30px; border-radius: 4px; text-align: right; background: #1a1a1a; }
         .kp-total-box span.lbl { display: block; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
         .kp-total-box span.sum { font-size: 24px; font-weight: 600; color: #fff; }
 
-        .continue-text { position: absolute; bottom: 60px; left: 0; width: 100%; text-align: center; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; }
-        .continue-text i { display: block; margin-top: 10px; font-size: 16px; color: #555;}
-
-        .kp-rich-footer { position: absolute; bottom: 50px; left: 50px; right: 50px; padding-top: 30px; border-top: 1px solid #333; display: flex; justify-content: space-between; gap: 40px; }
+        .kp-rich-footer {
+            padding-top: 30px; border-top: 1px solid #333;
+            display: flex; justify-content: space-between; gap: 40px;
+        }
         .footer-col-left { flex: 2; }
         .footer-col-right { flex: 1; text-align: right; }
         .kp-rich-footer h4 { margin: 0 0 15px 0; color: #fff; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
@@ -121,46 +121,127 @@
         .footer-col-right p i { color: #666; margin-right: 8px; width: 16px; text-align: center;}
         .footer-col-right strong { color: #fff; font-weight: 500;}
 
+        /* Плашка "продолжение" для промежуточных страниц */
+        .kp-continuation {
+            position: absolute; bottom: 50px; left: 50px; right: 50px;
+            border-top: 1px solid #333; padding-top: 18px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .kp-continuation .cont-text {
+            font-size: 11px; color: #666; letter-spacing: 1px; text-transform: uppercase;
+        }
+        .kp-continuation .cont-text i { margin-right: 8px; color: #555; }
+        .kp-continuation .cont-pages {
+            font-size: 11px; color: #555; letter-spacing: 1px;
+        }
 
-        /* =========================================
-           МОБИЛЬНАЯ АДАПТАЦИЯ (Медиа-запросы) 
-           ========================================= */
+        /* Номер страницы в футере последней страницы */
+        .kp-page-num {
+            font-size: 11px; color: #555; letter-spacing: 1px; text-align: center;
+            margin-top: 18px;
+        }
+
+        /* Индикатор страниц в превью */
+        .page-label {
+            color: #444; font-size: 11px; text-align: center; letter-spacing: 2px;
+            text-transform: uppercase; margin-bottom: 5px;
+        }
+
+        /* ═══════════════════════════════════════════
+           МОБИЛЬНАЯ АДАПТАЦИЯ
+        ═══════════════════════════════════════════ */
+
+        .mobile-nav { display: none; }
+        .mobile-generate-bar { display: none; }
+
         @media (max-width: 900px) {
+            /* Сбрасываем базовый layout */
             body {
                 flex-direction: column;
-                height: auto; 
-                overflow: visible; /* Разрешаем скролл всей страницы на мобильном */
+                height: auto;
+                overflow: auto;
+                overflow-x: hidden;
             }
 
+            /* ─── Таб-навигация ─── */
+            .mobile-nav {
+                display: flex;
+                position: sticky;
+                top: 0;
+                z-index: 200;
+                background: #111;
+                border-bottom: 1px solid #222;
+                flex-shrink: 0;
+            }
+
+            .mobile-tab {
+                flex: 1;
+                padding: 16px 10px;
+                background: none;
+                border: none;
+                border-bottom: 2px solid transparent;
+                color: #555;
+                font-family: 'Montserrat', sans-serif;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 1.5px;
+                cursor: pointer;
+                transition: color 0.2s, border-color 0.2s;
+            }
+            .mobile-tab i { margin-right: 6px; }
+            .mobile-tab.active { color: #fff; border-bottom-color: #fff; }
+
+            /* ─── Панель настроек ─── */
             .controls-panel {
                 width: 100%;
                 border-right: none;
-                border-bottom: 1px solid #333;
-                padding: 20px 15px;
-                overflow: visible;
+                border-bottom: 1px solid #222;
+                height: auto;
+                overflow-y: visible;
+                padding: 24px 16px 100px; /* нижний отступ под sticky-кнопку */
+            }
+            .controls-panel.tab-hidden { display: none; }
+
+            /* Скрываем десктопную кнопку генерации в настройках */
+            #btn-generate { display: none; }
+
+            /* ─── Sticky-кнопка генерации на мобиле ─── */
+            .mobile-generate-bar {
+                display: none; /* показывается JS'ом только на вкладке превью */
+                position: fixed;
+                bottom: 0; left: 0; right: 0;
+                z-index: 300;
+                padding: 12px 16px;
+                background: linear-gradient(to top, #111 80%, transparent);
+            }
+            .mobile-generate-bar.visible { display: block; }
+            .mobile-generate-bar .action-btn {
+                margin-bottom: 0;
+                font-size: 13px;
+                padding: 16px;
             }
 
+            /* ─── Панель превью ─── */
             .preview-panel {
+                flex-grow: 0;
                 width: 100%;
-                padding: 20px 0;
-                box-sizing: border-box;
-                overflow: hidden;
+                padding: 16px 0 80px; /* нижний отступ под sticky-кнопку */
+                align-items: flex-start;
+                justify-content: flex-start;
+                min-height: 0;
+                background: #000;
+                overflow-x: hidden;
+            }
+            .preview-panel.tab-hidden { display: none; }
+
+            /* ─── Масштабирование A4 ─── */
+            #preview-scaler {
+                transform-origin: top left;
+                /* ширина и трансформ выставляются через JS */
             }
 
-            /* Кнопка сохранения прилипает к низу экрана на телефонах */
-            .btn-generate {
-                position: sticky;
-                bottom: 15px;
-                z-index: 100;
-                box-shadow: 0 5px 20px rgba(0,0,0,0.8);
-                padding: 18px;
-                font-size: 14px;
-            }
-            
-            /* Блоки с позициями на мобильном перестраиваются */
-            .item-input-block > div[style="display:flex; gap: 10px;"] {
-                flex-direction: column;
-                gap: 0;
+            .page-label {
+                /* при scale нужен scale-компенсированный размер — обновляется JS'ом */
             }
         }
 
@@ -168,8 +249,17 @@
 </head>
 <body>
 
-    <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
-    <div class="controls-panel">
+    <!-- ─── Мобильная таб-навигация (скрыта на десктопе) ─── -->
+    <div class="mobile-nav" id="mobile-nav">
+        <button class="mobile-tab active" data-tab="settings" onclick="switchTab('settings')">
+            <i class="fas fa-sliders-h"></i> Настройки
+        </button>
+        <button class="mobile-tab" data-tab="preview" onclick="switchTab('preview')">
+            <i class="fas fa-eye"></i> Превью
+        </button>
+    </div>
+
+    <div class="controls-panel" id="panel-settings">
         <h2>Настройки документа</h2>
         
         <div class="settings-block">
@@ -193,24 +283,27 @@
             </div>
         </div>
 
-        <h3 style="font-size: 14px; margin-top: 30px; border-bottom: 1px solid #333; padding-bottom: 10px; color:#fff;">СПИСОК ПОЗИЦИЙ (Макс 5 на лист)</h3>
+        <h3 style="font-size: 14px; margin-top: 30px; border-bottom: 1px solid #333; padding-bottom: 10px; color:#fff;">СПИСОК ПОЗИЦИЙ</h3>
         
         <div id="items-container"></div>
 
         <button class="action-btn" onclick="addItem()"><i class="fas fa-plus"></i> Добавить позицию</button>
-        <button class="action-btn btn-generate" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Сохранить PDF</button>
+        <button class="action-btn btn-generate" id="btn-generate" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Сохранить PDF (А4)</button>
     </div>
 
-    <!-- ЗОНА ПРЕВЬЮ -->
-    <div class="preview-panel">
-        <div id="pdf-scale-container">
-            <div id="pdf-wrapper">
-                <!-- Страницы генерируются здесь через JS -->
-            </div>
+    <!-- Sticky-кнопка генерации на мобиле (видна только на превью-вкладке) -->
+    <div class="mobile-generate-bar" id="mobile-generate-bar">
+        <button class="action-btn btn-generate" onclick="generatePDF()">
+            <i class="fas fa-file-pdf"></i> Сохранить PDF
+        </button>
+    </div>
+
+    <div class="preview-panel" id="panel-preview">
+        <div id="preview-scaler">
+            <div id="pdf-wrapper"></div>
         </div>
     </div>
 
-    <!-- СКРИПТЫ -->
     <script>
         const availableIcons = [
             { val: 'fas fa-trowel', name: 'Штукатурка / Шпаклевка' },
@@ -227,7 +320,9 @@
 
         let items = [];
 
-        function formatNumber(num) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num); }
+        function formatNumber(num) {
+            return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num);
+        }
 
         function handleImageUpload(input, index) {
             const file = input.files[0];
@@ -256,10 +351,10 @@
 
         function renderForm() {
             const container = document.getElementById('items-container');
-            container.innerHTML = ''; 
+            container.innerHTML = '';
 
             items.forEach((item, index) => {
-                let visualControlHTML = item.visualType === 'image' 
+                let visualControlHTML = item.visualType === 'image'
                     ? `<input type="file" accept="image/*" onchange="handleImageUpload(this, ${index})" style="margin-top:5px;">`
                     : `<select onchange="updateItemData(${index}, 'iconClass', this.value)" style="margin-top:5px;">
                         ${availableIcons.map(ic => `<option value="${ic.val}" ${item.iconClass === ic.val ? 'selected' : ''}>${ic.name}</option>`).join('')}
@@ -286,208 +381,323 @@
             });
         }
 
-        function chunkArray(array, size) {
-            const result = [];
-            for (let i = 0; i < array.length; i += size) {
-                result.push(array.slice(i, i + size));
-            }
-            return result;
+        // ─────────────────────────────────────────────
+        //  ГЕНЕРАЦИЯ HTML ДЛЯ ОДНОЙ СТРАНИЦЫ
+        // ─────────────────────────────────────────────
+        function buildPageHTML({ isFirstPage, rows, grandTotal, showFooter, pageNum = 1, totalPages = 1 }) {
+            const cCompany  = document.getElementById('c-company').value;
+            const cSub      = document.getElementById('c-sub').value;
+            const cName     = document.getElementById('c-name').value;
+            const cPhone    = document.getElementById('c-phone').value;
+            const cEmail    = document.getElementById('c-email').value;
+            const cAbout    = document.getElementById('c-about').value;
+            const cTitle    = document.getElementById('c-main-title').value;
+            const cSubTitle = document.getElementById('c-sub-title').value;
+
+            const headerHtml = `
+                <div class="kp-header">
+                    <div class="kp-logo"><h1>${cCompany}</h1><p>${cSub}</p></div>
+                    <div class="kp-contacts">
+                        <strong>${cName}</strong><br><div style="margin-top:5px;"></div>
+                        <i class="fas fa-phone"></i> <span>${cPhone}</span><br>
+                        <i class="fas fa-envelope"></i> <span>${cEmail}</span>
+                    </div>
+                </div>`;
+
+            const titleHtml = isFirstPage ? `
+                <div class="kp-title-block">
+                    <h2>${cTitle}</h2>
+                    <p>${cSubTitle}</p>
+                </div>` : '';
+
+            const rowsHtml = rows.map(item => {
+                const sum = item.qty * item.price;
+                const vis = item.visualType === 'image'
+                    ? `<img src="${item.imageBase64 || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}">`
+                    : `<i class="${item.iconClass}"></i>`;
+                return `
+                    <tr class="kp-row">
+                        <td class="visual-cell"><div class="visual-box">${vis}</div></td>
+                        <td><strong style="font-weight:500;font-size:13px;color:#fff;">${item.desc}</strong></td>
+                        <td class="right">${item.qty}</td>
+                        <td class="right">${formatNumber(item.price)}</td>
+                        <td class="right" style="color:#fff;font-weight:500;">${formatNumber(sum)}</td>
+                    </tr>`;
+            }).join('');
+
+            const tableHtml = `
+                <table class="kp-table">
+                    <thead><tr>
+                        <th colspan="2">Наименование</th>
+                        <th class="right">Кол-во</th>
+                        <th class="right">Цена</th>
+                        <th class="right">Итого</th>
+                    </tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>`;
+
+            // Последняя страница: итог + о нас + контакты
+            const footerHtml = showFooter ? `
+                <div class="kp-bottom-block">
+                    <div class="kp-total-wrapper">
+                        <div class="kp-total-box">
+                            <span class="lbl">Общая стоимость</span>
+                            <span class="sum">${formatNumber(grandTotal)} ₽</span>
+                        </div>
+                    </div>
+                    <div class="kp-rich-footer">
+                        <div class="footer-col-left">
+                            <h4>О НАШЕЙ КОМПАНИИ</h4>
+                            <p>${cAbout.replace(/\n/g, '<br>')}</p>
+                        </div>
+                        <div class="footer-col-right">
+                            <h4>СВЯЗАТЬСЯ С НАМИ</h4>
+                            <p><i class="fas fa-user"></i> <strong>${cName}</strong></p>
+                            <p><i class="fas fa-phone"></i> <span>${cPhone}</span></p>
+                            <p><i class="fas fa-envelope"></i> <span>${cEmail}</span></p>
+                        </div>
+                    </div>
+                    ${totalPages > 1 ? `<div class="kp-page-num">${pageNum} / ${totalPages}</div>` : ''}
+                </div>` : `
+                <div class="kp-continuation">
+                    <span class="cont-text"><i class="fas fa-arrow-down"></i> Продолжение на следующей странице</span>
+                    <span class="cont-pages">${pageNum} / ${totalPages}</span>
+                </div>`;
+
+            return headerHtml + titleHtml + tableHtml + footerHtml;
         }
 
-        // --- ЛОГИКА МАСШТАБИРОВАНИЯ ДЛЯ ТЕЛЕФОНОВ ---
-        function adjustMobileScale() {
-            const container = document.getElementById('pdf-scale-container');
-            const wrapper = document.getElementById('pdf-wrapper');
-            const screenWidth = window.innerWidth;
-            
-            if (screenWidth < 850) {
-                // Высчитываем коэффициент сжатия, чтобы ширина 800px влезла в экран (с небольшим отступом)
-                const scale = (screenWidth - 20) / 800;
-                container.style.transform = `scale(${scale})`;
-                
-                // Чтобы после сжатия снизу не было огромной пустой дыры, корректируем высоту контейнера
-                const actualHeight = wrapper.getBoundingClientRect().height;
-                container.style.height = (actualHeight * scale) + 'px';
-            } else {
-                container.style.transform = 'none';
-                container.style.height = 'auto';
+        // ─────────────────────────────────────────────
+        //  ПАГИНАЦИЯ: разбивает items на страницы
+        //  с учётом реальной высоты строк
+        // ─────────────────────────────────────────────
+        function paginateItems() {
+            // Создаём скрытый измеритель с теми же стилями
+            const ruler = document.createElement('div');
+            ruler.className = 'a4-page';
+            ruler.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;';
+            document.body.appendChild(ruler);
+
+            const PAGE_H = 1131 - 100; // высота минус паддинги (50px × 2)
+
+            // Динамически замеряем высоту блока итога + подвала
+            ruler.innerHTML = buildPageHTML({ isFirstPage: false, rows: [], grandTotal: 0, showFooter: true, pageNum: 1, totalPages: 2 });
+            const bottomBlock = ruler.querySelector('.kp-bottom-block');
+            const FOOTER_H = bottomBlock ? bottomBlock.offsetHeight + 20 : 260;
+
+            // Замеряем высоту плашки "продолжение"
+            ruler.innerHTML = buildPageHTML({ isFirstPage: false, rows: [], grandTotal: 0, showFooter: false, pageNum: 1, totalPages: 2 });
+            const contBlock = ruler.querySelector('.kp-continuation');
+            const CONTINUATION_H = contBlock ? contBlock.offsetHeight + 20 : 60;
+
+            // На каждой странице снизу будет либо футер, либо плашка — берём максимум
+            const BOTTOM_RESERVE = Math.max(FOOTER_H, CONTINUATION_H);
+            const HEADER_TITLE_H = (() => {
+                ruler.innerHTML = buildPageHTML({ isFirstPage: true, rows: [], grandTotal: 0, showFooter: false });
+                return ruler.querySelector('.kp-header').offsetHeight
+                     + (ruler.querySelector('.kp-title-block')?.offsetHeight || 0)
+                     + (ruler.querySelector('.kp-table')?.offsetHeight || 0); // только thead
+            })();
+            const HEADER_ONLY_H = (() => {
+                ruler.innerHTML = buildPageHTML({ isFirstPage: false, rows: [], grandTotal: 0, showFooter: false });
+                return ruler.querySelector('.kp-header').offsetHeight
+                     + ruler.querySelector('.kp-table').offsetHeight;
+            })();
+
+            const pages = [];
+            let currentRows = [];
+            let isFirst     = true;
+            let usedH       = HEADER_TITLE_H;
+
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+
+                // Замеряем высоту строки
+                ruler.innerHTML = buildPageHTML({ isFirstPage: isFirst, rows: [item], grandTotal: 0, showFooter: false, pageNum: 1, totalPages: 2 });
+                const rowEl = ruler.querySelector('.kp-row');
+                const rowH  = rowEl ? rowEl.offsetHeight : 92;
+
+                // Каждая страница резервирует место под нижний блок (футер или плашку)
+                if (usedH + rowH + BOTTOM_RESERVE > PAGE_H && currentRows.length > 0) {
+                    pages.push({ isFirstPage: isFirst, rows: [...currentRows], showFooter: false });
+                    currentRows = [];
+                    isFirst     = false;
+                    usedH       = HEADER_ONLY_H;
+                }
+
+                currentRows.push(item);
+                usedH += rowH;
             }
+
+            // Последняя страница — всегда с футером
+            if (currentRows.length > 0 || pages.length === 0) {
+                pages.push({ isFirstPage: isFirst, rows: currentRows, showFooter: true });
+            } else if (pages.length > 0) {
+                // Случай когда последний item вытолкнул на новую страницу
+                pages[pages.length - 1].showFooter = true;
+            }
+
+            document.body.removeChild(ruler);
+            return pages;
         }
 
-        // Обновляем масштаб при повороте экрана смартфона
-        window.addEventListener('resize', adjustMobileScale);
-
+        // ─────────────────────────────────────────────
+        //  РЕНДЕР ПРЕВЬЮ
+        // ─────────────────────────────────────────────
         function updatePreview() {
             const wrapper = document.getElementById('pdf-wrapper');
-            wrapper.innerHTML = ''; 
+            wrapper.innerHTML = '';
 
-            const cCompany = document.getElementById('c-company').value;
-            const cSub = document.getElementById('c-sub').value;
-            const cMainTitle = document.getElementById('c-main-title').value;
-            const cSubTitle = document.getElementById('c-sub-title').value;
-            const cName = document.getElementById('c-name').value;
-            const cPhone = document.getElementById('c-phone').value;
-            const cEmail = document.getElementById('c-email').value;
-            const cAbout = document.getElementById('c-about').value.replace(/\n/g, '<br>');
+            const grandTotal = items.reduce((s, it) => s + it.qty * it.price, 0);
+            const pages = paginateItems();
+            const totalPages = pages.length;
 
-            let chunks = chunkArray(items, 5);
-            if (chunks.length === 0) chunks = [[]]; 
-
-            const totalPages = chunks.length;
-            let grandTotal = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
-
-            chunks.forEach((chunk, pageIndex) => {
-                const pageNum = pageIndex + 1;
-                const isLastPage = (pageNum === totalPages);
-                
-                const page = document.createElement('div');
-                page.className = 'a4-page';
-
-                let html = '';
-
-                if (pageNum === 1) {
-                    html += `
-                        <div class="kp-header">
-                            <div class="kp-logo"><h1>${cCompany}</h1><p>${cSub}</p></div>
-                            <div class="kp-contacts">
-                                <strong>${cName}</strong><br><div style="margin-top:5px;"></div>
-                                <i class="fas fa-phone"></i> <span>${cPhone}</span><br>
-                                <i class="fas fa-envelope"></i> <span>${cEmail}</span>
-                            </div>
-                        </div>
-                        <div class="kp-title-block">
-                            <h2>${cMainTitle}</h2>
-                            <p>${cSubTitle}</p>
-                        </div>
-                    `;
-                } else {
-                    html += `
-                        <div class="kp-header">
-                            <div class="kp-logo">
-                                <h1>${cCompany}</h1>
-                                <span class="page-num">Страница ${pageNum} из ${totalPages}</span>
-                            </div>
-                            <div class="kp-contacts">
-                                <strong>${cName}</strong><br><div style="margin-top:5px;"></div>
-                                <i class="fas fa-phone"></i> <span>${cPhone}</span><br>
-                                <i class="fas fa-envelope"></i> <span>${cEmail}</span>
-                            </div>
-                        </div>
-                    `;
+            pages.forEach((page, idx) => {
+                if (totalPages > 1) {
+                    const lbl = document.createElement('div');
+                    lbl.className = 'page-label';
+                    lbl.textContent = `Страница ${idx + 1} из ${totalPages}`;
+                    wrapper.appendChild(lbl);
                 }
 
-                html += `
-                    <table class="kp-table">
-                        <thead>
-                            <tr>
-                                <th colspan="2">Наименование работ / материалов</th>
-                                <th class="right">Кол-во</th>
-                                <th class="right">Цена</th>
-                                <th class="right">Итого</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
+                const pageEl = document.createElement('div');
+                pageEl.className = 'a4-page';
+                pageEl.innerHTML = buildPageHTML({
+                    isFirstPage: page.isFirstPage,
+                    rows: page.rows,
+                    grandTotal,
+                    showFooter: page.showFooter,
+                    pageNum: idx + 1,
+                    totalPages
+                });
+                wrapper.appendChild(pageEl);
+            });
 
-                chunk.forEach(item => {
-                    const sum = item.qty * item.price;
-                    let vis = item.visualType === 'image' 
-                        ? `<img src="${item.imageBase64 || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}">`
-                        : `<i class="${item.iconClass}"></i>`;
+            // Применяем масштаб для мобильного превью
+            applyPreviewScale();
+        }
 
-                    html += `
-                        <tr class="kp-row">
-                            <td class="visual-cell"><div class="visual-box">${vis}</div></td>
-                            <td><strong style="font-weight: 500; font-size:13px; color:#fff;">${item.desc}</strong></td>
-                            <td class="right">${item.qty}</td>
-                            <td class="right">${formatNumber(item.price)}</td>
-                            <td class="right" style="color:#fff; font-weight:500;">${formatNumber(sum)}</td>
-                        </tr>
-                    `;
+        // ─────────────────────────────────────────────
+        //  ГЕНЕРАЦИЯ PDF
+        //  Каждая .a4-page рендерится отдельно →
+        //  собирается в многостраничный PDF через jsPDF
+        // ─────────────────────────────────────────────
+        async function generatePDF() {
+            const btn = document.getElementById('btn-generate');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Генерация...';
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pages = Array.from(document.querySelectorAll('#pdf-wrapper .a4-page'));
+                const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-яёА-ЯЁ0-9]/gi, '_');
+
+                const pdf = new jsPDF({
+                    unit: 'px',
+                    format: [800, 1131],
+                    orientation: 'portrait',
+                    hotfixes: ['px_scaling']
                 });
 
-                html += `</tbody></table>`;
+                for (let i = 0; i < pages.length; i++) {
+                    if (i > 0) pdf.addPage([800, 1131], 'portrait');
 
-                if (!isLastPage) {
-                    html += `
-                        <div class="continue-text">
-                            Продолжение на следующей странице
-                            <i class="fas fa-arrow-down"></i>
-                        </div>
-                    `;
-                } 
-                else {
-                    html += `
-                        <div class="kp-total-wrapper">
-                            <div class="kp-total-box">
-                                <span class="lbl">Общая стоимость</span>
-                                <span class="sum">${formatNumber(grandTotal)} ₽</span>
-                            </div>
-                        </div>
-                        
-                        <div class="kp-rich-footer">
-                            <div class="footer-col-left">
-                                <h4>О НАШЕЙ КОМПАНИИ</h4>
-                                <p>${cAbout}</p>
-                            </div>
-                            <div class="footer-col-right">
-                                <h4>СВЯЗАТЬСЯ С НАМИ</h4>
-                                <p><i class="fas fa-user"></i> <strong>${cName}</strong></p>
-                                <p><i class="fas fa-phone"></i> <span>${cPhone}</span></p>
-                                <p><i class="fas fa-envelope"></i> <span>${cEmail}</span></p>
-                            </div>
-                        </div>
-                    `;
+                    const canvas = await html2canvas(pages[i], {
+                        scale: 2,                    // Ретина-качество
+                        useCORS: true,
+                        backgroundColor: '#151515',
+                        width: 800,
+                        height: 1131,
+                        scrollX: 0,
+                        scrollY: -window.scrollY,
+                        logging: false
+                    });
+
+                    const imgData = canvas.toDataURL('image/jpeg', 0.97);
+                    // Добавляем изображение точно на всю страницу PDF
+                    pdf.addImage(imgData, 'JPEG', 0, 0, 800, 1131);
                 }
 
-                page.innerHTML = html;
-                wrapper.appendChild(page);
-            });
-            
-            // После отрисовки обновляем масштаб под экран
-            adjustMobileScale();
+                pdf.save(`КП_${subTitle}.pdf`);
+            } catch (err) {
+                console.error('PDF generation error:', err);
+                alert('Ошибка генерации PDF:\n' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-file-pdf"></i> Сохранить PDF (А4)';
+            }
         }
 
-function generatePDF() {
-            const originalWrapper = document.getElementById('pdf-wrapper');
-            const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-я0-9]/gi, '_');
-            
-            // 1. Создаем временный невидимый контейнер строго в координатах 0,0
-            const tempDiv = document.createElement('div');
-            tempDiv.style.position = 'fixed';
-            tempDiv.style.top = '0';
-            tempDiv.style.left = '0';
-            tempDiv.style.width = '800px';
-            tempDiv.style.zIndex = '-9999'; // Прячем за экраном, чтобы не мерцало
-            tempDiv.style.background = '#151515';
+        // ─────────────────────────────────────────────
+        //  МОБИЛЬНАЯ НАВИГАЦИЯ И МАСШТАБИРОВАНИЕ
+        // ─────────────────────────────────────────────
+        const isMobile = () => window.innerWidth <= 900;
 
-            // 2. Делаем точную копию нашего КП и кладем в этот контейнер
-            const clone = originalWrapper.cloneNode(true);
-            tempDiv.appendChild(clone);
-            document.body.appendChild(tempDiv);
+        function switchTab(tab) {
+            document.querySelectorAll('.mobile-tab').forEach(t =>
+                t.classList.toggle('active', t.dataset.tab === tab)
+            );
+            const settings = document.getElementById('panel-settings');
+            const preview  = document.getElementById('panel-preview');
+            const genBar   = document.getElementById('mobile-generate-bar');
 
-            // 3. Настройки генерации
-            const opt = {
-                margin:       0,
-                filename:     `КП_${subTitle}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { 
-                    scale: 2, 
-                    useCORS: true, 
-                    backgroundColor: '#151515',
-                    scrollY: 0,
-                    scrollX: 0,
-                    windowWidth: 800 // Жестко фиксируем ширину
-                },
-                jsPDF:        { unit: 'px', format: [800, 1131], orientation: 'portrait' }
-            };
-
-            // 4. Генерируем PDF из чистого клона, а затем удаляем его
-            html2pdf().set(opt).from(clone).save().then(() => {
-                document.body.removeChild(tempDiv);
-            });
+            if (tab === 'settings') {
+                settings.classList.remove('tab-hidden');
+                preview.classList.add('tab-hidden');
+                genBar.classList.remove('visible');
+            } else {
+                settings.classList.add('tab-hidden');
+                preview.classList.remove('tab-hidden');
+                genBar.classList.add('visible');
+                applyPreviewScale();
+            }
         }
 
+        function applyPreviewScale() {
+            if (!isMobile()) {
+                const scaler = document.getElementById('preview-scaler');
+                scaler.style.transform = '';
+                scaler.style.width = '';
+                scaler.style.height = '';
+                return;
+            }
+
+            const scaler  = document.getElementById('preview-scaler');
+            const wrapper = document.getElementById('pdf-wrapper');
+            const panel   = document.getElementById('panel-preview');
+
+            const available = panel.clientWidth || window.innerWidth;
+            const scale = available / 800;
+
+            // Считаем реальную высоту контента (страницы + gap'ы между ними)
+            const pages = wrapper.querySelectorAll('.a4-page');
+            const GAP = 20;
+            const naturalH = pages.length > 0
+                ? pages.length * 1131 + (pages.length - 1) * GAP
+                : 1131;
+
+            scaler.style.transform = `scale(${scale})`;
+            scaler.style.transformOrigin = 'top left';
+            scaler.style.width = '800px';
+            scaler.style.height = naturalH + 'px';
+
+            // Выставляем высоту внешнего контейнера чтобы не было лишнего скролла
+            panel.style.minHeight = Math.ceil(naturalH * scale + 80) + 'px';
+        }
+
+        window.addEventListener('resize', () => {
+            if (isMobile()) applyPreviewScale();
+            else applyPreviewScale(); // сброс
+        });
+
+        // --- СТАРТ ---
+        window.onload = () => {
+            addItem('icon', 'fas fa-trowel',        'Штукатурка гипсовая Knauf Rotband (30кг)', 520);
+            addItem('icon', 'fas fa-paint-roller',  'Комплекс малярных работ (кв.м)',            1200);
+            addItem('icon', 'fas fa-tape',           'Малярная лента, укрывочная пленка, расходники', 3500);
+            renderForm();
+            updatePreview();
+        };
     </script>
 </body>
 </html>
