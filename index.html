@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Генератор КП - ГЕОМЕТР</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -10,12 +10,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
-        /* --- ТЕМНАЯ ТЕМА ИНТЕРФЕЙСА --- */
+        /* --- БАЗОВЫЕ СТИЛИ --- */
         body {
             font-family: 'Montserrat', sans-serif; margin: 0; padding: 0;
             background-color: #050505; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden;
         }
 
+        /* --- ПАНЕЛЬ УПРАВЛЕНИЯ --- */
         .controls-panel {
             width: 450px; background: #111; padding: 30px 25px; box-sizing: border-box;
             border-right: 1px solid #222; overflow-y: auto; z-index: 10;
@@ -41,15 +42,16 @@
         .item-input-block { background: #1a1a1a; border: 1px solid #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 15px; position: relative; }
         .remove-btn {
             position: absolute; top: 12px; right: 12px; background: none; color: #ff4444; 
-            border: 1px solid #ff4444; border-radius: 4px; cursor: pointer; padding: 4px 8px; transition: 0.2s; font-size: 12px;
+            border: 1px solid #ff4444; border-radius: 4px; cursor: pointer; padding: 8px; transition: 0.2s; font-size: 14px;
         }
         .remove-btn:hover { background: #ff4444; color: #fff; }
 
         button.action-btn {
             width: 100%; padding: 14px; border: 1px solid #444; background: #222; color: #fff; 
-            border-radius: 6px; cursor: pointer; font-weight: 500; margin-bottom: 10px; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; transition: 0.2s;
+            border-radius: 6px; cursor: pointer; font-weight: 500; margin-bottom: 10px; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; transition: 0.2s;
         }
         button.action-btn:hover { background: #333; border-color: #fff; }
+        
         .btn-generate { background: #fff !important; color: #000 !important; font-weight: 600; border: none !important; margin-top: 20px; font-size: 13px;}
         .btn-generate:hover { background: #ddd !important; }
 
@@ -59,7 +61,12 @@
             padding: 40px; overflow-y: auto; background: #000;
         }
 
-        /* Убрали gap, чтобы html2canvas не захватывал пустоту и не плодил пустые страницы */
+        #pdf-scale-container {
+            /* Контейнер для корректного масштабирования на мобилках */
+            width: 800px;
+            transform-origin: top center;
+        }
+
         #pdf-wrapper { 
             display: flex; flex-direction: column; background: #151515;
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
@@ -67,23 +74,16 @@
 
         /* ЖЕСТКИЕ СТИЛИ СТРАНИЦЫ А4 */
         .a4-page {
-            width: 800px;
-            height: 1131px; /* Точные пропорции А4 */
-            background: #151515;
-            color: #ffffff;
-            padding: 50px;
-            box-sizing: border-box;
-            position: relative; /* Для абсолютного позиционирования подвала */
-            overflow: hidden;
-            border-bottom: 1px solid #222; /* Визуальный разделитель в браузере */
+            width: 800px; height: 1131px; background: #151515; color: #ffffff;
+            padding: 50px; box-sizing: border-box; position: relative; overflow: hidden;
+            border-bottom: 1px solid #222;
         }
         .a4-page:last-child { border-bottom: none; }
 
-        /* Элементы внутри PDF */
+        /* Внутренности PDF */
         .kp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 25px;}
         .kp-logo h1 { margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; }
         .kp-logo p { margin: 5px 0 0 0; font-size: 11px; color: #888; letter-spacing: 2px; text-transform: uppercase;}
-        
         .kp-logo .page-num { color: #fff; font-weight: 500; font-size: 12px; background: #333; padding: 3px 8px; border-radius: 4px; display: inline-block; margin-top: 8px;}
 
         .kp-contacts { text-align: right; font-size: 12px; color: #aaa; line-height: 1.8; }
@@ -109,20 +109,10 @@
         .kp-total-box span.lbl { display: block; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
         .kp-total-box span.sum { font-size: 24px; font-weight: 600; color: #fff; }
 
-        /* Надпись "Продолжение на следующей странице" */
-        .continue-text {
-            position: absolute; bottom: 60px; left: 0; width: 100%;
-            text-align: center; color: #666; font-size: 11px;
-            text-transform: uppercase; letter-spacing: 2px;
-        }
+        .continue-text { position: absolute; bottom: 60px; left: 0; width: 100%; text-align: center; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; }
         .continue-text i { display: block; margin-top: 10px; font-size: 16px; color: #555;}
 
-        /* Подвал строго прибит к низу последней страницы */
-        .kp-rich-footer {
-            position: absolute; bottom: 50px; left: 50px; right: 50px;
-            padding-top: 30px; border-top: 1px solid #333;
-            display: flex; justify-content: space-between; gap: 40px;
-        }
+        .kp-rich-footer { position: absolute; bottom: 50px; left: 50px; right: 50px; padding-top: 30px; border-top: 1px solid #333; display: flex; justify-content: space-between; gap: 40px; }
         .footer-col-left { flex: 2; }
         .footer-col-right { flex: 1; text-align: right; }
         .kp-rich-footer h4 { margin: 0 0 15px 0; color: #fff; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
@@ -131,10 +121,54 @@
         .footer-col-right p i { color: #666; margin-right: 8px; width: 16px; text-align: center;}
         .footer-col-right strong { color: #fff; font-weight: 500;}
 
+
+        /* =========================================
+           МОБИЛЬНАЯ АДАПТАЦИЯ (Медиа-запросы) 
+           ========================================= */
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+                height: auto; 
+                overflow: visible; /* Разрешаем скролл всей страницы на мобильном */
+            }
+
+            .controls-panel {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #333;
+                padding: 20px 15px;
+                overflow: visible;
+            }
+
+            .preview-panel {
+                width: 100%;
+                padding: 20px 0;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+
+            /* Кнопка сохранения прилипает к низу экрана на телефонах */
+            .btn-generate {
+                position: sticky;
+                bottom: 15px;
+                z-index: 100;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.8);
+                padding: 18px;
+                font-size: 14px;
+            }
+            
+            /* Блоки с позициями на мобильном перестраиваются */
+            .item-input-block > div[style="display:flex; gap: 10px;"] {
+                flex-direction: column;
+                gap: 0;
+            }
+        }
+
     </style>
 </head>
 <body>
 
+    <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
     <div class="controls-panel">
         <h2>Настройки документа</h2>
         
@@ -164,12 +198,15 @@
         <div id="items-container"></div>
 
         <button class="action-btn" onclick="addItem()"><i class="fas fa-plus"></i> Добавить позицию</button>
-        <button class="action-btn btn-generate" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Сохранить PDF (А4)</button>
+        <button class="action-btn btn-generate" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Сохранить PDF</button>
     </div>
 
+    <!-- ЗОНА ПРЕВЬЮ -->
     <div class="preview-panel">
-        <div id="pdf-wrapper">
-            <!-- Страницы генерируются здесь через JS -->
+        <div id="pdf-scale-container">
+            <div id="pdf-wrapper">
+                <!-- Страницы генерируются здесь через JS -->
+            </div>
         </div>
     </div>
 
@@ -256,6 +293,29 @@
             }
             return result;
         }
+
+        // --- ЛОГИКА МАСШТАБИРОВАНИЯ ДЛЯ ТЕЛЕФОНОВ ---
+        function adjustMobileScale() {
+            const container = document.getElementById('pdf-scale-container');
+            const wrapper = document.getElementById('pdf-wrapper');
+            const screenWidth = window.innerWidth;
+            
+            if (screenWidth < 850) {
+                // Высчитываем коэффициент сжатия, чтобы ширина 800px влезла в экран (с небольшим отступом)
+                const scale = (screenWidth - 20) / 800;
+                container.style.transform = `scale(${scale})`;
+                
+                // Чтобы после сжатия снизу не было огромной пустой дыры, корректируем высоту контейнера
+                const actualHeight = wrapper.getBoundingClientRect().height;
+                container.style.height = (actualHeight * scale) + 'px';
+            } else {
+                container.style.transform = 'none';
+                container.style.height = 'auto';
+            }
+        }
+
+        // Обновляем масштаб при повороте экрана смартфона
+        window.addEventListener('resize', adjustMobileScale);
 
         function updatePreview() {
             const wrapper = document.getElementById('pdf-wrapper');
@@ -348,7 +408,6 @@
 
                 html += `</tbody></table>`;
 
-                // Если страница НЕ последняя - пишем "Продолжение на следующей странице"
                 if (!isLastPage) {
                     html += `
                         <div class="continue-text">
@@ -357,7 +416,6 @@
                         </div>
                     `;
                 } 
-                // Если последняя - добавляем Итог и Футер
                 else {
                     html += `
                         <div class="kp-total-wrapper">
@@ -385,26 +443,38 @@
                 page.innerHTML = html;
                 wrapper.appendChild(page);
             });
+            
+            // После отрисовки обновляем масштаб под экран
+            adjustMobileScale();
         }
 
         function generatePDF() {
+            const container = document.getElementById('pdf-scale-container');
             const element = document.getElementById('pdf-wrapper');
             const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-я0-9]/gi, '_');
             
+            // 1. Отключаем масштаб перед скачиванием (чтобы качество не упало)
+            container.style.transform = 'none';
+            container.style.height = 'auto';
+
             const opt = {
-                margin:       0,
+                margin:       [0, 0, 0, 0],
                 filename:     `КП_${subTitle}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { 
                     scale: 2, 
                     useCORS: true, 
                     backgroundColor: '#151515',
-                    scrollY: 0 // ВАЖНО: Фиксит обрезку PDF при скролле вниз
+                    scrollY: 0,
+                    windowWidth: 800 // Принудительно задаем ширину холста
                 },
                 jsPDF:        { unit: 'px', format: [800, 1131], orientation: 'portrait' }
             };
 
-            html2pdf().set(opt).from(element).save();
+            // 2. Генерируем PDF, а затем (then) возвращаем масштаб обратно
+            html2pdf().set(opt).from(element).save().then(() => {
+                adjustMobileScale();
+            });
         }
 
         window.onload = () => {
