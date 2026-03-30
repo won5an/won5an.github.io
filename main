@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор КП - ГЕОМЕТР</title>
+    
+    <!-- Подключение шрифтов и иконок -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Библиотека генерации PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* --- ТЕМНАЯ ТЕМА ИНТЕРФЕЙСА --- */
+        body {
+            font-family: 'Montserrat', sans-serif; margin: 0; padding: 0;
+            background-color: #050505; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden;
+        }
+
+        .controls-panel {
+            width: 450px; background: #111; padding: 30px 25px; box-sizing: border-box;
+            border-right: 1px solid #222; overflow-y: auto; z-index: 10;
+        }
+
+        .controls-panel::-webkit-scrollbar { width: 6px; }
+        .controls-panel::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+        h2 { color: #fff; font-weight: 500; margin-top: 0; letter-spacing: 2px; text-transform: uppercase; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 15px;}
+        h3 { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 0;}
+        
+        .settings-block { background: #1a1a1a; padding: 20px; border-radius: 8px; border: 1px solid #2a2a2a; margin-bottom: 25px;}
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 10px; margin-bottom: 6px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+        .form-group input, .form-group select, .form-group textarea { 
+            width: 100%; padding: 12px; background: #222; border: 1px solid #333; 
+            color: #fff; border-radius: 4px; box-sizing: border-box; font-family: 'Montserrat', sans-serif; font-size: 12px; transition: 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #777; outline: none; background: #2a2a2a;}
+        .form-group textarea { resize: vertical; min-height: 80px; }
+
+        .item-input-block { background: #1a1a1a; border: 1px solid #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 15px; position: relative; }
+        
+        .remove-btn {
+            position: absolute; top: 12px; right: 12px; background: none; color: #ff4444; 
+            border: 1px solid #ff4444; border-radius: 4px; cursor: pointer; padding: 4px 8px; transition: 0.2s; font-size: 12px;
+        }
+        .remove-btn:hover { background: #ff4444; color: #fff; }
+
+        button.action-btn {
+            width: 100%; padding: 14px; border: 1px solid #444; background: #222; color: #fff; 
+            border-radius: 6px; cursor: pointer; font-weight: 500; margin-bottom: 10px; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; transition: 0.2s;
+        }
+        button.action-btn:hover { background: #333; border-color: #fff; }
+        
+        .btn-generate { background: #fff !important; color: #000 !important; font-weight: 600; border: none !important; margin-top: 20px; font-size: 13px;}
+        .btn-generate:hover { background: #ddd !important; }
+
+        /* --- ЗОНА ПРЕВЬЮ PDF --- */
+        .preview-panel {
+            flex-grow: 1; display: flex; justify-content: center; align-items: flex-start;
+            padding: 40px; overflow-y: auto; background: #000;
+        }
+
+        /* Контейнер для PDF. Ширина фиксирована, высота подстраивается под контент */
+        #pdf-content {
+            width: 800px; background: #151515; color: #ffffff;
+            padding: 50px; box-sizing: border-box; position: relative;
+        }
+
+        /* Настройки разрыва страниц (для многостраничного PDF) */
+        .kp-header, .kp-title-block, .kp-row, .kp-total-wrapper, .kp-rich-footer {
+            page-break-inside: avoid;
+        }
+
+        /* Шапка КП */
+        .kp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 1px solid #333; padding-bottom: 30px;}
+        
+        .kp-logo h1 { margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; }
+        .kp-logo p { margin: 5px 0 0 0; font-size: 12px; color: #aaa; letter-spacing: 2px; text-transform: uppercase;}
+
+        .kp-contacts { text-align: right; font-size: 12px; color: #aaa; line-height: 1.8; }
+        .kp-contacts strong { color: #fff; font-weight: 500; font-size: 14px; }
+        .kp-contacts i { width: 20px; text-align: center; color: #666;}
+
+        /* Заголовок проекта */
+        .kp-title-block { text-align: center; margin-bottom: 40px; }
+        .kp-title-block h2 { font-size: 24px; font-weight: 400; letter-spacing: 2px; margin: 0 0 5px 0; color: #fff; border: none; padding: 0;}
+        .kp-title-block p { font-size: 14px; color: #888; margin: 0; letter-spacing: 1px; text-transform: uppercase;}
+
+        /* Таблица */
+        .kp-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 10px;}
+        .kp-table th { 
+            padding: 15px 10px; text-align: left; border-top: 1px solid #444; border-bottom: 1px solid #444; 
+            color: #aaa; font-weight: 400; text-transform: uppercase; letter-spacing: 1px; font-size: 11px;
+        }
+        .kp-table th.right { text-align: right; }
+        .kp-table td.right { text-align: right; }
+
+        .kp-row td { padding: 20px 10px; border-bottom: 1px solid #222; vertical-align: middle; }
+        
+        .visual-cell { width: 80px; }
+        .visual-box {
+            width: 70px; height: 70px; border: 1px solid #444; border-radius: 4px; 
+            display: flex; justify-content: center; align-items: center; background: #1a1a1a; overflow: hidden;
+        }
+        .visual-box img { width: 100%; height: 100%; object-fit: cover; }
+        .visual-box i { font-size: 28px; color: #fff; }
+
+        /* Итог */
+        .kp-total-wrapper { display: flex; justify-content: flex-end; margin-top: 20px; }
+        .kp-total-box { border: 1px solid #555; padding: 20px 30px; border-radius: 4px; text-align: right; background: #1a1a1a; }
+        .kp-total-box span.lbl { display: block; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .kp-total-box span.sum { font-size: 24px; font-weight: 600; color: #fff; }
+
+        /* Продающий Подвал (Футер) */
+        .kp-rich-footer {
+            margin-top: 60px; padding-top: 40px; border-top: 1px solid #333;
+            display: flex; justify-content: space-between; gap: 40px;
+        }
+        .footer-col-left { flex: 2; }
+        .footer-col-right { flex: 1; text-align: right; }
+        
+        .kp-rich-footer h4 { margin: 0 0 15px 0; color: #fff; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; padding: 0; border: none;}
+        .kp-rich-footer p { font-size: 11px; color: #aaa; line-height: 1.8; margin: 0 0 10px 0;}
+        .footer-col-right p { font-size: 12px; margin-bottom: 8px;}
+        .footer-col-right p i { color: #666; margin-right: 8px; width: 16px; text-align: center;}
+        .footer-col-right strong { color: #fff; font-weight: 500;}
+
+    </style>
+</head>
+<body>
+
+    <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
+    <div class="controls-panel">
+        <h2>Настройки документа</h2>
+        
+        <!-- Блок Базовых настроек -->
+        <div class="settings-block">
+            <h3>Заголовки и Бренд</h3>
+            <div class="form-group">
+                <label>Название компании</label>
+                <input type="text" id="c-company" value="ГЕОМЕТР" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+                <label>Подзаголовок логотипа</label>
+                <input type="text" id="c-sub" value="Создаем пространство для жизни" oninput="updatePreview()">
+            </div>
+            
+            <div style="height: 10px;"></div>
+            
+            <div class="form-group">
+                <label>Главный заголовок (По центру)</label>
+                <input type="text" id="c-main-title" value="КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+                <label>Тип работ / Название объекта</label>
+                <input type="text" id="c-sub-title" value="Черновые материалы" oninput="updatePreview()">
+            </div>
+        </div>
+
+        <div class="settings-block">
+            <h3>Контакты и маркетинг</h3>
+            <div class="form-group"><label>Менеджер</label><input type="text" id="c-name" value="Михаил Болдок" oninput="updatePreview()"></div>
+            <div class="form-group"><label>Телефон</label><input type="text" id="c-phone" value="+7 (996) 316-39-99" oninput="updatePreview()"></div>
+            <div class="form-group"><label>Email</label><input type="text" id="c-email" value="nikolaevich.ba@gmail.com" oninput="updatePreview()"></div>
+            
+            <div class="form-group" style="margin-top:20px;">
+                <label>Текст «О нас» (В самом низу документа)</label>
+                <textarea id="c-about" oninput="updatePreview()">Мы предлагаем не только надежные материалы, но и выполняем полный комплекс ремонтно-отделочных услуг. Профессионально выполняем штукатурные, шпаклевочные, малярные работы и укладку плитки. 
+
+Создаем эстетичные и долговечные пространства для комфортной жизни.</textarea>
+            </div>
+        </div>
+
+        <h3 style="font-size: 14px; margin-top: 30px; border-bottom: 1px solid #333; padding-bottom: 10px; color:#fff;">СПИСОК ПОЗИЦИЙ</h3>
+        
+        <div id="items-container"></div>
+
+        <button class="action-btn" onclick="addItem()"><i class="fas fa-plus"></i> Добавить позицию</button>
+        <button class="action-btn btn-generate" onclick="generatePDF()"><i class="fas fa-file-pdf"></i> Сохранить PDF (А4)</button>
+    </div>
+
+    <!-- ЗОНА ПРЕВЬЮ -->
+    <div class="preview-panel">
+        <div id="pdf-content">
+            <!-- Шапка -->
+            <div class="kp-header">
+                <div class="kp-logo">
+                    <h1 id="prev-company">ГЕОМЕТР</h1>
+                    <p id="prev-sub">Создаем пространство для жизни</p>
+                </div>
+                <div class="kp-contacts">
+                    <strong id="prev-c-name-top">Михаил Болдок</strong><br>
+                    <div style="margin-top: 5px;"></div>
+                    <i class="fas fa-phone"></i> <span id="prev-c-phone-top">+7 (996) 316-39-99</span><br>
+                    <i class="fas fa-envelope"></i> <span id="prev-c-email-top">nikolaevich.ba@gmail.com</span>
+                </div>
+            </div>
+
+            <!-- Название -->
+            <div class="kp-title-block">
+                <h2 id="prev-main-title">КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ</h2>
+                <p id="prev-sub-title">Черновые материалы</p>
+            </div>
+
+            <!-- Таблица -->
+            <table class="kp-table">
+                <thead>
+                    <tr>
+                        <th colspan="2">Наименование работ / материалов</th>
+                        <th class="right">Кол-во</th>
+                        <th class="right">Цена</th>
+                        <th class="right">Итого</th>
+                    </tr>
+                </thead>
+                <tbody id="prev-items-body"></tbody>
+            </table>
+
+            <!-- Итог -->
+            <div class="kp-total-wrapper">
+                <div class="kp-total-box">
+                    <span class="lbl">Общая стоимость</span>
+                    <span class="sum"><span id="prev-total-sum">0</span> ₽</span>
+                </div>
+            </div>
+
+            <!-- Продающий Подвал -->
+            <div class="kp-rich-footer">
+                <div class="footer-col-left">
+                    <h4>О НАШЕЙ КОМПАНИИ</h4>
+                    <p id="prev-about">Мы предлагаем не только надежные материалы, но и выполняем полный комплекс...</p>
+                </div>
+                <div class="footer-col-right">
+                    <h4>СВЯЗАТЬСЯ С НАМИ</h4>
+                    <p><i class="fas fa-user"></i> <strong id="prev-c-name-bot">Михаил Болдок</strong></p>
+                    <p><i class="fas fa-phone"></i> <span id="prev-c-phone-bot">+7 (996) 316-39-99</span></p>
+                    <p><i class="fas fa-envelope"></i> <span id="prev-c-email-bot">nikolaevich.ba@gmail.com</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- СКРИПТЫ -->
+    <script>
+        // Иконки для стройматериалов и отделки
+        const availableIcons = [
+            { val: 'fas fa-trowel', name: 'Штукатурка / Шпаклевка' },
+            { val: 'fas fa-paint-roller', name: 'Малярные работы / Краска' },
+            { val: 'fas fa-fill-drip', name: 'Декоративная штукатурка' },
+            { val: 'fas fa-border-all', name: 'Плитка / Керамогранит' },
+            { val: 'fas fa-layer-group', name: 'Ламинат / Напольные покрытия' },
+            { val: 'fas fa-tape', name: 'Расходники / Скотч / Пленка' },
+            { val: 'fas fa-pallet', name: 'Сухие смеси / Мешки / Поддоны' },
+            { val: 'fas fa-box-open', name: 'Прочие материалы' },
+            { val: 'fas fa-truck', name: 'Доставка / Подъем материала' },
+            { val: 'fas fa-tools', name: 'Инструмент / Монтаж' }
+        ];
+
+        let items = [];
+
+        // --- ЛОГИКА ПОЗИЦИЙ ---
+        function formatNumber(num) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num); }
+
+        function handleImageUpload(input, index) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    items[index].imageBase64 = e.target.result;
+                    updatePreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateItemData(index, field, value) {
+            if (field === 'qty' || field === 'price') items[index][field] = parseFloat(value.replace(',', '.')) || 0;
+            else items[index][field] = value;
+            
+            if (field === 'visualType') renderForm();
+            else updatePreview();
+        }
+
+        function removeItem(index) {
+            items.splice(index, 1);
+            renderForm();
+            updatePreview();
+        }
+
+        function addItem(type = 'icon', iconClass = 'fas fa-trowel', desc = 'Новая позиция', price = 1000) {
+            items.push({ visualType: type, iconClass: iconClass, imageBase64: '', desc: desc, qty: 1, price: price });
+            renderForm();
+            updatePreview();
+        }
+
+        function renderForm() {
+            const container = document.getElementById('items-container');
+            container.innerHTML = ''; 
+
+            items.forEach((item, index) => {
+                let visualControlHTML = '';
+                if (item.visualType === 'image') {
+                    visualControlHTML = `<input type="file" accept="image/*" onchange="handleImageUpload(this, ${index})" style="margin-top:5px;">`;
+                } else {
+                    visualControlHTML = `<select onchange="updateItemData(${index}, 'iconClass', this.value)" style="margin-top:5px;">
+                            ${availableIcons.map(ic => `<option value="${ic.val}" ${item.iconClass === ic.val ? 'selected' : ''}>${ic.name}</option>`).join('')}
+                        </select>`;
+                }
+
+                const div = document.createElement('div');
+                div.className = 'item-input-block';
+                div.innerHTML = `
+                    <button class="remove-btn" onclick="removeItem(${index})" title="Удалить"><i class="fas fa-times"></i></button>
+                    
+                    <div class="form-group" style="padding-right: 30px;">
+                        <label>Изображение или иконка</label>
+                        <select onchange="updateItemData(${index}, 'visualType', this.value)">
+                            <option value="icon" ${item.visualType === 'icon' ? 'selected' : ''}>Векторная иконка</option>
+                            <option value="image" ${item.visualType === 'image' ? 'selected' : ''}>Загрузить картинку</option>
+                        </select>
+                        ${visualControlHTML}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Описание материала / работ</label>
+                        <input type="text" value="${item.desc}" oninput="updateItemData(${index}, 'desc', this.value)">
+                    </div>
+                    
+                    <div style="display:flex; gap: 10px;">
+                        <div class="form-group" style="flex:1;"><label>Кол-во</label><input type="number" step="0.01" value="${item.qty}" oninput="updateItemData(${index}, 'qty', this.value)"></div>
+                        <div class="form-group" style="flex:2;"><label>Цена за ед. (₽)</label><input type="number" step="1" value="${item.price}" oninput="updateItemData(${index}, 'price', this.value)"></div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updatePreview() {
+            // Бренд
+            document.getElementById('prev-company').innerText = document.getElementById('c-company').value || 'ГЕОМЕТР';
+            document.getElementById('prev-sub').innerText = document.getElementById('c-sub').value;
+            
+            // Заголовки
+            document.getElementById('prev-main-title').innerText = document.getElementById('c-main-title').value;
+            document.getElementById('prev-sub-title').innerText = document.getElementById('c-sub-title').value;
+
+            // Контакты и О нас
+            const mName = document.getElementById('c-name').value;
+            const mPhone = document.getElementById('c-phone').value;
+            const mEmail = document.getElementById('c-email').value;
+
+            document.getElementById('prev-c-name-top').innerText = mName;
+            document.getElementById('prev-c-phone-top').innerText = mPhone;
+            document.getElementById('prev-c-email-top').innerText = mEmail;
+            
+            document.getElementById('prev-c-name-bot').innerText = mName;
+            document.getElementById('prev-c-phone-bot').innerText = mPhone;
+            document.getElementById('prev-c-email-bot').innerText = mEmail;
+
+            document.getElementById('prev-about').innerText = document.getElementById('c-about').value;
+
+            // Таблица
+            const tbody = document.getElementById('prev-items-body');
+            tbody.innerHTML = '';
+            let grandTotal = 0;
+
+            items.forEach((item) => {
+                const sum = item.qty * item.price;
+                grandTotal += sum;
+
+                const tr = document.createElement('tr');
+                tr.className = 'kp-row';
+                
+                let visualHTML = '';
+                if (item.visualType === 'image') {
+                    const src = item.imageBase64 || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+                    visualHTML = `<img src="${src}" alt="img">`;
+                } else {
+                    visualHTML = `<i class="${item.iconClass}"></i>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="visual-cell"><div class="visual-box">${visualHTML}</div></td>
+                    <td><strong style="font-weight: 500; font-size:14px; color:#fff;">${item.desc}</strong></td>
+                    <td class="right">${item.qty}</td>
+                    <td class="right">${formatNumber(item.price)}</td>
+                    <td class="right" style="color:#fff; font-weight:500;">${formatNumber(sum)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('prev-total-sum').innerText = formatNumber(grandTotal);
+        }
+
+        // --- ГЕНЕРАЦИЯ МНОГОСТРАНИЧНОГО PDF ---
+        function generatePDF() {
+            const element = document.getElementById('pdf-content');
+            const subTitle = document.getElementById('c-sub-title').value.replace(/[^a-zа-я0-9]/gi, '_');
+            
+            const opt = {
+                margin:       0,
+                filename:     `КП_${subTitle}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#151515' },
+                // Формат А4 в пикселях с учетом ширины 800px (пропорция 1 : 1.414)
+                jsPDF:        { unit: 'px', format: [800, 1131], orientation: 'portrait' },
+                // CSS режим разрыва страниц гарантирует, что строки таблицы не будут разрезаны пополам
+                pagebreak:    { mode: ['css', 'legacy'] } 
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // --- ИНИЦИАЛИЗАЦИЯ ---
+        window.onload = () => {
+            // Тестовые данные для демонстрации
+            addItem('icon', 'fas fa-trowel', 'Штукатурка гипсовая Knauf Rotband (30кг)', 520);
+            addItem('icon', 'fas fa-paint-roller', 'Комплекс малярных работ (кв.м)', 1200);
+            addItem('icon', 'fas fa-tape', 'Малярная лента, укрывочная пленка, расходники', 3500);
+            addItem('icon', 'fas fa-truck', 'Доставка, разгрузка и подъем материала', 4000);
+            
+            renderForm();
+            updatePreview();
+        };
+
+    </script>
+</body>
+</html>
